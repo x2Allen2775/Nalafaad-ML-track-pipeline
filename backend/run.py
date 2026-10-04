@@ -12,7 +12,7 @@ import uvicorn
 
 if __name__ == "__main__":
     print("Starting SplitSnap Backend on http://0.0.0.0:8000 ...")
-    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8000, reload=True)
 
 
 
