@@ -110,8 +110,8 @@ nalafaad/
 Clone the repository and install the backend Python dependencies:
 ```bash
 # Clone the project
-git clone <repository-url>
-cd nalafaad
+git clone https://github.com/x2Allen2775/Nalafaad-ML-track-pipeline.git
+cd Nalafaad-ML-track-pipeline
 
 # Create and activate a virtual environment
 python3 -m venv venv
