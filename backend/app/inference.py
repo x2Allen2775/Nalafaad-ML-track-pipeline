@@ -230,17 +230,25 @@ class ReceiptInferenceEngine:
         except Exception as e:
             print(f"[InferenceEngine] Neural OCR extraction error: {e}")
 
-        # Graceful fallback with low-confidence review flags if image was blank or unreadable
-        w, h = image.size
-        selected_preset = PRESET_BILLS[0] if h >= w else PRESET_BILLS[1]
-        data_dict = json.loads(json.dumps(selected_preset))
-
-        for i, item in enumerate(data_dict["items"]):
-            item["id"] = f"item_{i+1}_{str(uuid.uuid4())[:4]}"
-            item["is_low_confidence"] = True
-            item["confidence"] = 0.50
-
-        data_dict["merchant"]["name"] = "Receipt (Review Required)"
-        return ReceiptData(**data_dict)
+        # Honest fallback if the uploaded image has unreadable or missing text
+        from datetime import datetime
+        return ReceiptData(
+            merchant=MerchantInfo(name="Receipt (Review & Add Items)", date=datetime.now().strftime("%Y-%m-%d")),
+            items=[
+                ReceiptItem(
+                    id="item_1_review",
+                    name="Item 1 (Click to enter item name)",
+                    quantity=1,
+                    price=0.0,
+                    is_low_confidence=True,
+                    confidence=0.10
+                )
+            ],
+            subtotal=AmountField(amount=0.0),
+            taxes=[],
+            service_charge=AmountField(amount=0.0),
+            discount=AmountField(amount=0.0),
+            total=AmountField(amount=0.0)
+        )
 
 engine = ReceiptInferenceEngine()

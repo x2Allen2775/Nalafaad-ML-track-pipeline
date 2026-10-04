@@ -8,6 +8,18 @@ base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if base_dir not in sys.path:
     sys.path.insert(0, base_dir)
 
+# Ensure cross-platform OCR engine is installed
+try:
+    import easyocr
+except ImportError:
+    print("\n[SplitSnap] Installing cross-platform OCR engine (easyocr)...")
+    import subprocess
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "easyocr", "--quiet"])
+        print("[SplitSnap] OCR engine installed successfully!\n")
+    except Exception as e:
+        print(f"[SplitSnap] Warning: could not auto-install easyocr ({e}). Run: pip install easyocr")
+
 import uvicorn
 
 if __name__ == "__main__":

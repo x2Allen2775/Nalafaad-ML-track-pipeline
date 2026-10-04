@@ -11,3 +11,4 @@ transformers>=4.40.0
 sentencepiece>=0.1.99
 gdown>=5.0.0
 requests>=2.28.0
+easyocr>=1.7.0

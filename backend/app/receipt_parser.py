@@ -168,11 +168,14 @@ def parse_receipt_lines(lines: List[Dict[str, Any]]) -> ReceiptData:
                     pass
 
         # Service Charge
-        if "service charge" in lower or "service fee" in lower or re.search(r"\bsc\b", lower):
+        if any(sc in lower for sc in ["service charge", "service fee", "charge:", "svc charge", "service chg", "sanic? charge", "surcharge"]) or re.search(r"\b(sc|svc)\b", lower):
             amt_match = re.findall(r"\d+(?:\.\d{1,2})?", txt.replace(",", ""))
             if amt_match:
                 try:
-                    sc_val = float(amt_match[-1])
+                    sc_cand = float(amt_match[-1])
+                    if sc_cand > 500 and (sc_cand > (subtotal_val or 500)):
+                        sc_cand = sc_cand / 100.0
+                    sc_val = sc_cand
                     consumed_indices.add(idx)
                     continue
                 except ValueError:
@@ -205,18 +208,26 @@ def parse_receipt_lines(lines: List[Dict[str, Any]]) -> ReceiptData:
         if re.search(r"^[-=_*#\s.]+$", txt):
             continue
 
+        # OCR error cleaning on trailing price token (e.g. I8uu -> 180.00, 34O -> 340)
+        cleaned_txt = txt
+        tokens = cleaned_txt.split()
+        if tokens:
+            last_tok = tokens[-1]
+            # If last token looks like a corrupted price with I/l/o/u characters
+            if re.match(r"^[Il|]?\d+[oOuU0-9]*(?:\.\d+)?$", last_tok):
+                fixed_last = last_tok.replace("I", "1").replace("l", "1").replace("|", "1")
+                fixed_last = fixed_last.replace("o", "0").replace("O", "0").replace("u", "0").replace("U", "0")
+                tokens[-1] = fixed_last
+                cleaned_txt = " ".join(tokens)
+
         # Look for numbers/prices at the end of the line
-        # Common line formats:
-        # "Paneer Butter Masala 1 320.00"
-        # "2 Butter Naan 120.00"
-        # "Filter Coffee 80.00"
-        numbers = re.findall(r"\b\d+(?:\.\d{1,2})?\b", txt.replace(",", ""))
+        numbers = re.findall(r"\b\d+(?:\.\d{1,2})?\b", cleaned_txt.replace(",", ""))
         if not numbers:
             continue
 
         price_val = None
         qty_val = 1
-        name_part = txt
+        name_part = cleaned_txt
 
         # Check if last number is a valid price (> 0)
         try:
@@ -229,7 +240,7 @@ def parse_receipt_lines(lines: List[Dict[str, Any]]) -> ReceiptData:
             price_val = potential_price
 
             # Remove the price from the end of the text
-            remaining = re.sub(rf"{re.escape(last_num_str)}\s*$", "", txt).strip()
+            remaining = re.sub(rf"{re.escape(last_num_str)}\s*$", "", cleaned_txt).strip()
 
             # Check if there is an integer quantity remaining
             sub_numbers = re.findall(r"\b\d+\b", remaining)
