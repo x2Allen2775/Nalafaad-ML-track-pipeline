@@ -12,12 +12,11 @@ import uvicorn
 
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("🚀 SplitSnap Backend Server Starting...")
+    print("🚀 SplitSnap Backend Server Started")
     print("=" * 60)
-    print("👉 Backend API Root:       http://localhost:8000")
+    print("👉 SplitSnap Web App:      http://localhost:3000")
+    print("👉 Backend API (Redirect): http://localhost:8000")
     print("👉 Interactive API Docs:   http://localhost:8000/docs")
-    print("👉 Health Status:          http://localhost:8000/api/health")
-    print("👉 Frontend Web App:       http://localhost:3000")
     print("=" * 60 + "\n")
     uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8000, reload=True)
 
