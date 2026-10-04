@@ -26,15 +26,18 @@ export async function extractReceiptFromApi(
     const formData = new FormData();
     formData.append("file", file);
 
-    const candidateUrls = [BACKEND_URL];
-    if (BACKEND_URL !== "http://localhost:8000" && BACKEND_URL !== "http://127.0.0.1:8000") {
-      candidateUrls.push("http://localhost:8000");
-    }
+    const candidateUrls = Array.from(new Set([
+      BACKEND_URL,
+      "http://localhost:8000",
+      "http://127.0.0.1:8000"
+    ]));
+
+    let lastError: any = null;
 
     for (const url of candidateUrls) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         const res = await fetch(`${url}/api/extract`, {
           method: "POST",
           headers: {
@@ -55,14 +58,23 @@ export async function extractReceiptFromApi(
           if (jsonRes.raw) {
             return parseRawDonutSequence(jsonRes.raw, jsonRes.mean_confidence || 0.95);
           }
+        } else {
+          lastError = new Error(`Backend at ${url} responded with status ${res.status}`);
         }
       } catch (err) {
-        console.warn(`Extraction at ${url} unavailable, trying fallback.`, err);
+        lastError = err;
+        console.warn(`Extraction at ${url} unavailable, trying fallback url...`, err);
       }
     }
+
+    // Never silently overwrite a user's uploaded bill with mock data
+    throw new Error(
+      lastError?.message ||
+      "Could not connect to SplitSnap backend at http://localhost:8000 or http://127.0.0.1:8000. Please verify that 'python backend/run.py' is running in Terminal 1."
+    );
   }
 
-  // Fallback to sample bill if backend is unavailable
+  // Fallback for preset bills only (never for custom uploads)
   const { SAMPLE_PRESETS } = await import("./sampleData");
   return JSON.parse(JSON.stringify(SAMPLE_PRESETS[0].data));
 }

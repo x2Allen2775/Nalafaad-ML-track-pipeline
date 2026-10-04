@@ -20,17 +20,21 @@ export const StepCapture: React.FC<StepCaptureProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
+    setErrorMsg(null);
     const previewUrl = URL.createObjectURL(file);
     try {
       const { extractReceiptFromApi } = await import("../lib/apportionmentClient");
       const data = await extractReceiptFromApi(file);
       onReceiptLoaded(data, previewUrl);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Extraction error:", e);
-      onReceiptLoaded(SAMPLE_PRESETS[0].data, previewUrl);
+      setErrorMsg(
+        e?.message || "Extraction failed. Please check that the backend server is running in Terminal 1 (python backend/run.py)."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -39,6 +43,7 @@ export const StepCapture: React.FC<StepCaptureProps> = ({
   const handlePresetSelect = async (preset: PresetOption) => {
     setSelectedPresetId(preset.id);
     setIsLoading(true);
+    setErrorMsg(null);
     try {
       const { extractReceiptFromApi } = await import("../lib/apportionmentClient");
       const data = await extractReceiptFromApi(undefined, preset.id);
@@ -61,6 +66,17 @@ export const StepCapture: React.FC<StepCaptureProps> = ({
           Snap a photo of the restaurant bill, upload an image, or pick a sample bill.
         </p>
       </div>
+
+      {/* Error Banner */}
+      {errorMsg && (
+        <div className="p-4 rounded-xl border border-red-500/40 bg-red-950/30 text-red-200 text-sm flex items-start gap-3 animate-in fade-in">
+          <span className="text-red-400 font-bold text-base">⚠️</span>
+          <div className="flex-1">
+            <p className="font-semibold text-red-100">Receipt Processing Notice</p>
+            <p className="text-xs text-red-300/90 mt-0.5 leading-relaxed">{errorMsg}</p>
+          </div>
+        </div>
+      )}
 
       {/* Main Upload Dropzone */}
       <div

@@ -184,51 +184,53 @@ class ReceiptInferenceEngine:
                 if p["id"] == preset_id:
                     return ReceiptData(**p)
 
-        if self.model and self.processor:
-            import torch
-            pixel_values = self.processor(image.convert("RGB"), return_tensors="pt").pixel_values.to(self.device)
-            decoder_input_ids = torch.tensor([[self.model.config.decoder_start_token_id]]).to(self.device)
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    pixel_values,
-                    decoder_input_ids=decoder_input_ids,
-                    max_length=384,
-                    pad_token_id=self.processor.tokenizer.pad_token_id,
-                    eos_token_id=self.processor.tokenizer.eos_token_id,
-                    use_cache=True,
-                    num_beams=1,
-                    return_dict_in_generate=True,
-                    output_scores=True
-                )
-            seq = outputs.sequences[0]
-            decoded_str = self.processor.tokenizer.decode(seq, skip_special_tokens=False)
-
-            scores = torch.stack(outputs.scores, dim=1)
-            probs = torch.softmax(scores, dim=-1)
-            
-            
-            
-            token_ids = seq[1:]
-            token_probs = probs[0, torch.arange(len(token_ids)), token_ids].cpu().numpy()
-            avg_conf = float(token_probs.mean()) if len(token_probs) > 0 else 0.95
-            parsed_donut = self.parse_donut_sequence_to_json(decoded_str, avg_conf)
-            if parsed_donut.items and len(parsed_donut.items) > 0 and parsed_donut.total.amount > 0:
-                return parsed_donut
-            print(f"[InferenceEngine] Donut generated incomplete sequence ('{decoded_str[:60]}'), invoking Neural OCR extraction...")
-
-        # Real Neural OCR & Semantic Extraction Pipeline for uploaded receipt images
+        # 1. Primary Neural OCR & Semantic Extraction Pipeline
+        # Extracts true ground-truth text, merchant name, and line items directly from the image
         try:
             from .ocr_engine import ocr_engine
             from .receipt_parser import cluster_tokens_into_lines, parse_receipt_lines
 
             tokens = ocr_engine.extract_text_tokens(image)
-            if tokens:
+            if tokens and len(tokens) > 2:
                 lines = cluster_tokens_into_lines(tokens)
                 parsed_receipt = parse_receipt_lines(lines)
-                if parsed_receipt.items:
+                if parsed_receipt.items and len(parsed_receipt.items) > 0:
+                    print(f"[InferenceEngine] Successfully extracted {len(parsed_receipt.items)} items for '{parsed_receipt.merchant.name}' via Neural OCR.")
                     return parsed_receipt
         except Exception as e:
-            print(f"[InferenceEngine] Neural OCR extraction error: {e}")
+            print(f"[InferenceEngine] Neural OCR extraction note: {e}")
+
+        # 2. Donut Visual Document Understanding Model
+        if self.model and self.processor:
+            try:
+                import torch
+                pixel_values = self.processor(image.convert("RGB"), return_tensors="pt").pixel_values.to(self.device)
+                decoder_input_ids = torch.tensor([[self.model.config.decoder_start_token_id]]).to(self.device)
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        pixel_values,
+                        decoder_input_ids=decoder_input_ids,
+                        max_length=384,
+                        pad_token_id=self.processor.tokenizer.pad_token_id,
+                        eos_token_id=self.processor.tokenizer.eos_token_id,
+                        use_cache=True,
+                        num_beams=1,
+                        return_dict_in_generate=True,
+                        output_scores=True
+                    )
+                seq = outputs.sequences[0]
+                decoded_str = self.processor.tokenizer.decode(seq, skip_special_tokens=False)
+
+                scores = torch.stack(outputs.scores, dim=1)
+                probs = torch.softmax(scores, dim=-1)
+                token_ids = seq[1:]
+                token_probs = probs[0, torch.arange(len(token_ids)), token_ids].cpu().numpy()
+                avg_conf = float(token_probs.mean()) if len(token_probs) > 0 else 0.95
+                parsed_donut = self.parse_donut_sequence_to_json(decoded_str, avg_conf)
+                if parsed_donut.items and len(parsed_donut.items) > 0 and parsed_donut.total.amount > 0:
+                    return parsed_donut
+            except Exception as e:
+                print(f"[InferenceEngine] Donut generation note: {e}")
 
         # Honest fallback if the uploaded image has unreadable or missing text
         from datetime import datetime
