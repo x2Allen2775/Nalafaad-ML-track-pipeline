@@ -34,7 +34,7 @@ export async function extractReceiptFromApi(
     for (const url of candidateUrls) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
         const res = await fetch(`${url}/api/extract`, {
           method: "POST",
           headers: {

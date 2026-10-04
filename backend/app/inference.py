@@ -192,8 +192,7 @@ class ReceiptInferenceEngine:
                 outputs = self.model.generate(
                     pixel_values,
                     decoder_input_ids=decoder_input_ids,
-                    max_length=768,
-                    early_stopping=True,
+                    max_length=384,
                     pad_token_id=self.processor.tokenizer.pad_token_id,
                     eos_token_id=self.processor.tokenizer.eos_token_id,
                     use_cache=True,
