@@ -171,42 +171,39 @@ python3 ml/train_donut.py \
   --grad_accum_steps 8
 ```
 --
-## 5. Runnning the App:
-Terminal 1 - Start the FastAPI Backend
+## 5. Running the App:
 
-# From the repository root
+### Terminal 1 - Start the FastAPI Backend (API & Inference Engine)
+```bash
+# From the repository root:
 python3 backend/run.py
+```
+The backend API starts at:
+- **API Root / Dashboard:** [http://localhost:8000](http://localhost:8000)
+- **Interactive Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check Endpoint:** [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
-The backend should start at:
-http://localhost:8000
+*(Note: Visiting `http://localhost:8000` opens the Backend Gateway dashboard. To use the bill-splitting interface, launch the frontend in Terminal 2 below).*
 
-To check if it is running:
-curl http://localhost:8000/api/health
+---
 
-You should get something like:
-{"status":"healthy","service":"SplitSnap Backend",...}
-
-
-Terminal 2 - Start the Next.js Frontend
-
-# Go to the frontend folder
+### Terminal 2 - Start the Next.js Frontend (Web Application UI)
+Open a **new terminal tab or window**:
+```bash
+# Navigate to the frontend directory
 cd frontend
 
-# Install dependencies
+# Install dependencies (only needed once)
 npm install
 
-# Use the local backend
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
-
-# OR, if you are using the Colab T4 GPU tunnel:
-echo "NEXT_PUBLIC_API_URL=https://your-ngrok-url.ngrok-free.dev" > .env.local
-
-# Start the frontend
+# Start the development server
 npm run dev
+```
 
-Then open this in your browser:
-http://localhost:3000
---
+Now open the **Web Application** in your browser:
+👉 **[http://localhost:3000](http://localhost:3000)**
+
+---
 ## 6. Verification Demo:
 Once the app is running at http://localhost:3000, follow these 5 steps to test everything:
 
