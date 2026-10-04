@@ -12,43 +12,59 @@ export async function extractReceiptFromApi(
   file?: File,
   presetId?: string
 ): Promise<ReceiptData> {
-  const formData = new FormData();
-  if (file) {
-    formData.append("file", file);
-  }
+  // If user selected a preset, return it immediately with zero network latency
   if (presetId) {
-    formData.append("preset_id", presetId);
+    const { SAMPLE_PRESETS } = await import("./sampleData");
+    const found = SAMPLE_PRESETS.find((p) => p.id === presetId);
+    if (found) {
+      return JSON.parse(JSON.stringify(found.data));
+    }
   }
 
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/extract`, {
-      method: "POST",
-      headers: {
-        "ngrok-skip-browser-warning": "true"
-      },
-      body: formData
-    });
-    if (res.ok) {
-      const jsonRes = await res.json();
+  // If user uploaded an image, send to backend with timeout and fallback
+  if (file) {
+    const formData = new FormData();
+    formData.append("file", file);
 
-      // If the backend returned structured items directly
-      if (Array.isArray(jsonRes.items) && jsonRes.items.length > 0) {
-        return jsonRes;
-      }
+    const candidateUrls = [BACKEND_URL];
+    if (BACKEND_URL !== "http://localhost:8000" && BACKEND_URL !== "http://127.0.0.1:8000") {
+      candidateUrls.push("http://localhost:8000");
+    }
 
-      // If Colab returned { status: "success", raw: "<s_splitsnap>...", mean_confidence: ... }
-      if (jsonRes.raw) {
-        return parseRawDonutSequence(jsonRes.raw, jsonRes.mean_confidence || 0.95);
+    for (const url of candidateUrls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(`${url}/api/extract`, {
+          method: "POST",
+          headers: {
+            "ngrok-skip-browser-warning": "true"
+          },
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const jsonRes = await res.json();
+
+          if (Array.isArray(jsonRes.items) && jsonRes.items.length > 0) {
+            return jsonRes;
+          }
+
+          if (jsonRes.raw) {
+            return parseRawDonutSequence(jsonRes.raw, jsonRes.mean_confidence || 0.95);
+          }
+        }
+      } catch (err) {
+        console.warn(`Extraction at ${url} unavailable, trying fallback.`, err);
       }
     }
-  } catch (err) {
-    console.warn("Backend /api/extract unavailable, using offline fallback.", err);
   }
 
-  // Fallback to realistic Indian sample presets
+  // Fallback to sample bill if backend is unavailable
   const { SAMPLE_PRESETS } = await import("./sampleData");
-  const found = SAMPLE_PRESETS.find((p) => p.id === presetId) || SAMPLE_PRESETS[0];
-  return JSON.parse(JSON.stringify(found.data));
+  return JSON.parse(JSON.stringify(SAMPLE_PRESETS[0].data));
 }
 
 export function parseRawDonutSequence(seq: string, avgConf: number): ReceiptData {
@@ -300,36 +316,38 @@ export async function calculateProportionalSplitApi(
   assignments: Record<string, string[]>,
   overrides?: Record<string, number>
 ): Promise<SplitCalculationResponse> {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/calculate-split`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true"
-      },
-      body: JSON.stringify({
-        receipt,
-        people,
-        item_assignments: assignments,
-        manual_overrides: overrides
-      })
-    });
-
-
-
-
-    if (res.ok) {
-      return await res.json();
-    }
-
-
-
-
-  } catch (err) {
-    console.warn("Backend calculation API unavailable, computing locally.", err);
+  const candidateUrls = [BACKEND_URL];
+  if (BACKEND_URL !== "http://localhost:8000" && BACKEND_URL !== "http://127.0.0.1:8000") {
+    candidateUrls.push("http://localhost:8000");
   }
 
+  for (const url of candidateUrls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${url}/api/calculate-split`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+        },
+        body: JSON.stringify({
+          receipt,
+          people,
+          item_assignments: assignments,
+          manual_overrides: overrides
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-  
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn(`Backend calculation at ${url} unavailable:`, err);
+    }
+  }
+
   return calculateLocalProportionalSplit(receipt, people, assignments, overrides);
 }
