@@ -119,6 +119,9 @@ source venv/bin/activate    # On Windows: venv\Scripts\activate
 
 # Install backend dependencies
 pip install -r backend/requirements.txt
+
+# Download fine-tuned Donut weights (from Google Drive into ml/models/donut_splitsnap)
+python ml/download_model.py
 ```
 --
 3. ML Pipeline: Datadet Prepration And Augmnetation

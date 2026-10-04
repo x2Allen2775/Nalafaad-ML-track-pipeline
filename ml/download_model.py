@@ -12,11 +12,13 @@ import re
 
 # Default Google Drive File ID or Direct Download URL for donut_splitsnap.zip
 # Replace with the user's uploaded Drive file ID or public link
-DEFAULT_DRIVE_FILE_ID = os.getenv("DONUT_DRIVE_FILE_ID", "")
-DEFAULT_DRIVE_URL = os.getenv("DONUT_DRIVE_URL", "")
+DEFAULT_DRIVE_FILE_ID = os.getenv("DONUT_DRIVE_FILE_ID", "1sHSRn1ZrJNXJT7UktvLne7f5ntaTzHgP")
+DEFAULT_DRIVE_URL = os.getenv("DONUT_DRIVE_URL", "https://drive.google.com/file/d/1sHSRn1ZrJNXJT7UktvLne7f5ntaTzHgP/view?usp=sharing")
 
 DEST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "models", "donut_splitsnap"))
 ZIP_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "models", "donut_splitsnap.zip"))
+
+import subprocess
 
 def download_from_gdrive(file_id_or_url: str, output_path: str):
     """
@@ -29,50 +31,40 @@ def download_from_gdrive(file_id_or_url: str, output_path: str):
         file_id = match.group(0)
 
     print(f"Connecting to Google Drive (ID: {file_id})...")
+    direct_url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t"
 
-    # Try using gdown if installed
-    try:
-        import gdown
-        url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, output_path, quiet=False)
-        return True
-    except ImportError:
-        pass
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Fallback to requests / urllib
+    # Fast curl download if available
+    curl_path = shutil.which("curl")
+    if curl_path:
+        ret = subprocess.run([curl_path, "-L", "--progress-bar", "-o", output_path, direct_url])
+        if ret.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000000:
+            print("Download complete!")
+            return True
+
+    # Fallback to requests
     try:
         import requests
-        url = "https://docs.google.com/uc?export=download"
-        session = requests.Session()
-        response = session.get(url, params={"id": file_id}, stream=True)
-
-        token = None
-        for key, value in response.cookies.items():
-            if key.startswith("download_warning"):
-                token = value
-                break
-
-        if token:
-            params = {"id": file_id, "confirm": token}
-            response = session.get(url, params=params, stream=True)
-
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        total_size = int(response.headers.get("content-length", 0))
-        downloaded = 0
-
-        with open(output_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=32768):
-                if chunk:
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0:
-                        percent = (downloaded / total_size) * 100
-                        sys.stdout.write(f"\rDownloading: {downloaded / (1024*1024):.1f}MB / {total_size / (1024*1024):.1f}MB ({percent:.1f}%)")
-                    else:
-                        sys.stdout.write(f"\rDownloading: {downloaded / (1024*1024):.1f}MB")
-                    sys.stdout.flush()
-        print("\nDownload complete!")
-        return True
+        res = requests.get(direct_url, stream=True)
+        if res.status_code == 200:
+            total_size = int(res.headers.get("content-length", 0))
+            downloaded = 0
+            with open(output_path, "wb") as f:
+                for chunk in res.iter_content(chunk_size=1048576):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            sys.stdout.write(f"\rDownloading: {downloaded / (1024*1024):.1f}MB / {total_size / (1024*1024):.1f}MB ({(downloaded/total_size)*100:.1f}%)")
+                        else:
+                            sys.stdout.write(f"\rDownloading: {downloaded / (1024*1024):.1f}MB")
+                        sys.stdout.flush()
+            print("\nDownload complete!")
+            return True
+    except Exception as e:
+        print(f"Download failed: {e}")
+        return False
     except Exception as e:
         print(f"Direct download failed: {e}")
         return False

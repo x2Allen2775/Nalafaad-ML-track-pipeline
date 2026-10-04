@@ -212,8 +212,10 @@ class ReceiptInferenceEngine:
             token_ids = seq[1:]
             token_probs = probs[0, torch.arange(len(token_ids)), token_ids].cpu().numpy()
             avg_conf = float(token_probs.mean()) if len(token_probs) > 0 else 0.95
-
-            return self.parse_donut_sequence_to_json(decoded_str, avg_conf)
+            parsed_donut = self.parse_donut_sequence_to_json(decoded_str, avg_conf)
+            if parsed_donut.items and len(parsed_donut.items) > 0 and parsed_donut.total.amount > 0:
+                return parsed_donut
+            print(f"[InferenceEngine] Donut generated incomplete sequence ('{decoded_str[:60]}'), invoking Neural OCR extraction...")
 
         # Real Neural OCR & Semantic Extraction Pipeline for uploaded receipt images
         try:
