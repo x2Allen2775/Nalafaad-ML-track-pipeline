@@ -12,37 +12,29 @@ Splitting restaurant bills among a group can be surprisingly frustrating, partic
 
 4. **Mobile Capture Reality:** Thermal paper receipts can wrinkle easily and fade over time. On top of that, photos taken at restaurant tables often have problems such as shadows, glare, and angled perspectives.
 
-To address these issues, SplitSnap was designed around two tightly connected engines:
+To address these issues, SplitSnap was designed around three tightly connected engines:
 
-- **Vision Model:** A fine-tuned visual document transformer (**Donut** / `naver-clova-ix/donut-base`) that takes raw receipt photos and directly converts them into structured JSON without relying on a separate OCR engine.
+- **High-Precision Neural OCR & Spatial Parsing Engine:** A fast, cross-platform OCR engine (PyTorch EasyOCR and Apple Vision) combined with a deterministic 3-zone spatial layout parser ([`receipt_parser.py`](backend/app/receipt_parser.py)) that reliably isolates merchant metadata, item tables, prices, and dual CGST/SGST taxes from real-world camera photos.
+
+- **Visual Transformer Model (Donut):** A fine-tuned visual document transformer (**Donut** / `naver-clova-ix/donut-base`) that reads raw receipt patches and explores end-to-end token generation directly from visual cross-attention vectors.
 
 - **Apportionment Engine:** A deterministic mathematical engine that calculates fractional line-item shares, distributes taxes and surcharges according to consumption ratios, and produces a clear, human-readable breakdown.
 
 ---
 
-## 2. Model Selection: Why OCR-Free Document Understanding?
+## 2. Architecture & Design: Hybrid Document Understanding
 
-### 2.1 The Two-Stage Pipeline Trap
+To provide both research innovation and production reliability, SplitSnap implements a **Hybrid Multi-Engine Strategy**:
 
-A common way of parsing receipts is to first run an OCR engine such as Tesseract, EasyOCR, or PaddleOCR, and then pass the extracted information to an LLM:
-
+### 2.1 The Traditional Pipeline Challenges
+A standard two-stage pipeline relies on an OCR engine followed by an unconstrained LLM or generic regex:
 $$\text{Image} \xrightarrow{\text{OCR Engine}} \text{Raw Text Tokens + Bounding Boxes} \xrightarrow{\text{LLM / Regex}} \text{Structured JSON}$$
+If the downstream parsing rules do not account for spatial layout (e.g. multi-line dish names, addresses mixed with food items, or split CGST/SGST columns), errors cascade rapidly. Furthermore, sending raw receipts to remote LLM APIs introduces latency and privacy risks.
 
-While this approach looks straightforward, it can become unreliable when dealing with restaurant bills:
-
-- **OCR Fragility:** Thermal paper can be wrinkled or have faint printing, which makes character recognition difficult. For example, an `8` may be read as `0`, or `₹380.00` may be interpreted as `38000`. Bounding-box alignment can also become unreliable when item names and prices are spread across multiple lines.
-
-- **Latency & Cost:** Sending OCR outputs containing thousands of tokens to proprietary LLM APIs adds a cost to every request. It can also introduce 3–8 second network delays while sending private billing information to third-party servers.
-
-### 2.2 End-to-End Visual Parsing with Donut
-
-Donut (*Document Understanding Transformer*) uses an encoder-decoder architecture:
-
-- **Encoder:** A Swin Transformer processes the image directly as patches and learns hierarchical 2D representations across areas such as lines, margins, and columns.
-
-- **Decoder:** A multilingual mBART decoder autoregressively generates structured text tokens using visual cross-attention vectors from the encoder.
-
-Since Donut removes the OCR step entirely, the model can learn visual and linguistic context together. For example, it can learn that numbers appearing in the rightmost column are likely associated with item names on their left, even when the receipt is skewed or affected by shadows.
+### 2.2 SplitSnap's Hybrid Solution
+SplitSnap solves this by pairing two complementary approaches:
+1. **Geometric 3-Zone Spatial Parser:** Instead of unstructured regex or remote LLM calls, our OCR parser groups words by horizontal alignment, discards header metadata (addresses, phone numbers, GSTIN registration codes), enforces tabular column extraction, and verifies arithmetic symmetry between CGST and SGST.
+2. **End-to-End Visual Parsing with Donut:** For visual document understanding research, we fine-tune Donut (Swin Transformer + mBART decoder), allowing the model to learn visual layout features (margins, fonts, bold headers) alongside language tokens.
 
 ---
 

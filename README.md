@@ -1,17 +1,19 @@
 # Track 1: SplitSnap
 Itemised Bill-Splitting from a Single Photo
->> OCR-Free Receipt Parsing with Fine-Tuned Donut & Mathematically Fair Proportional Bill Splitting
+>> Hybrid Receipt Extraction (Neural OCR & Spatial Parsing + Fine-Tuned Donut) & Mathematically Fair Proportional Bill Splitting
 
 This is a web app designed to solve group dining bill splitting. Instead of splitting taxes, service charges, and discounts equally across everyone at the table (to reduce unfair splitting), our pipeline calculates each person's exact consumption subtotal and proportions all shared taxes and fees accordingly.
 
-Receipt extraction is powered by an end-to-end visual document understanding model (Donut / `naver-clova-ix/donut-base`) fine-tuned for restaurant receipts, avoiding the error cascading common in multi-stage OCR pipelines.
+Receipt extraction is powered by a **Hybrid Multi-Engine Pipeline**:
+1. **High-Precision Neural OCR & Spatial Parsing Engine:** Built with PyTorch EasyOCR and Apple Vision, coupled with a 3-zone spatial layout parser ([`receipt_parser.py`](backend/app/receipt_parser.py)) that reliably isolates headers, tabular line items, and statutory taxes (CGST/SGST) from unconstrained real-world camera captures.
+2. **End-to-End Visual Document Model (Donut):** Fine-tuned on Indian dining receipts (`naver-clova-ix/donut-base` with Swin-B encoder + mBART decoder) for direct visual token generation and confidence scoring.
 
 --
 
 ## Key Features:
 
-- **OCR-Free Visual Extraction**: Line items, quantities, prices, taxes, service charges and discounts extraction from raw camera captures in a single pass using a visual transformer (Swin-B encoder + mBART decoder).
-- **Uncertainty Highlighting:** Uses token-level decoder softmax probabilities to highlight items with low confidence ($< 0.85$) for quick user verification before splitting.
+- **Hybrid Receipt Extraction**: Combines high-precision Neural OCR (EasyOCR / Apple Vision) and a fine-tuned visual transformer (Donut) to extract line items, quantities, prices, CGST/SGST taxes, service charges, and discounts from raw camera captures.
+- **Uncertainty Highlighting:** Evaluates token-level softmax probabilities and OCR recognition confidence to highlight items with low confidence ($< 0.85$) for quick user verification before splitting.
 - **Line-Item Check:** Before you proceed, diners can correct misread numbers, update quantities or add manual items using an editable review table.
 - **Fractional Item Sharing:** Share appetizer, pizza or platter amongst any subset of diners ($1/2$, $1/3$, $1/N$) with individual subtotals updated in real-time.
 - **Proportional Apportionment:** Taxes (CGST, SGST, VAT) and restaurant service charges are divided according to each diner’s share of the table subtotal, not an arbitrary even split.
@@ -24,11 +26,13 @@ Receipt extraction is powered by an end-to-end visual document understanding mod
 
 ```mermaid
 graph TD
-    A[Receipt Photo / Upload] --> B[FastAPI Backend / Colab T4]
-    B --> C[Fine-Tuned Donut Model]
-    C --> D[Token Probability Estimator]
+    A[Receipt Photo / Upload] --> B[FastAPI Backend Gateway]
+    B --> C1[High-Precision Neural OCR & Spatial Parser]
+    B --> C2[Fine-Tuned Donut Vision Model]
+    C1 --> D[Confidence & Quality Evaluator]
+    C2 --> D
     D -->|Confidence < 0.85| E[Review Flag Trigger]
-    C --> F[Structured Receipt Schema]
+    D --> F[Structured Receipt Schema]
     F --> G[Next.js Web Application]
     G --> H[Item Verification & Correction]
     H --> I[Party Setup & People Chips]
@@ -47,6 +51,8 @@ nalafaad/
 |-- backend/
 |   |-- app/
 |   |   |-- main.py
+|   |   |-- ocr_engine.py
+|   |   |-- receipt_parser.py
 |   |   |-- apportionment.py
 |   |   |-- explanation.py
 |   |   |-- inference.py
