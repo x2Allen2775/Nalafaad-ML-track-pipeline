@@ -38,3 +38,8 @@ cord/
 sroie/
 ml/data/
 ml/models/
+
+# Team local defense guides
+PROJECT_MASTER_GUIDE.md
+CODE_WALKTHROUGH_GUIDE.md
+~$*.pptx
